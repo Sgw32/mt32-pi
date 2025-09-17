@@ -212,3 +212,79 @@ CONFIG_ENUM_PARSER(TEncoderType);
 CONFIG_ENUM_PARSER(TLCDRotation);
 CONFIG_ENUM_PARSER(TLCDMirror);
 CONFIG_ENUM_PARSER(TNetworkMode);
+
+// Helpers for writing config values
+template <class T, const char* pEnumStrings[], size_t N>
+static bool WriteEnum(FIL* pFile, const char* pName, T Value)
+{
+        const size_t nIndex = static_cast<size_t>(Value);
+        if (nIndex >= N)
+                return false;
+        return f_printf(pFile, "%s = %s\n", pName, pEnumStrings[nIndex]) >= 0;
+}
+
+static bool WriteOption(FIL* pFile, const char* pName, bool Value)
+{
+        return f_printf(pFile, "%s = %s\n", pName, Value ? "on" : "off") >= 0;
+}
+
+static bool WriteOption(FIL* pFile, const char* pName, int Value)
+{
+        return f_printf(pFile, "%s = %d\n", pName, Value) >= 0;
+}
+
+static bool WriteOption(FIL* pFile, const char* pName, float Value)
+{
+        return f_printf(pFile, "%s = %g\n", pName, Value) >= 0;
+}
+
+static bool WriteOption(FIL* pFile, const char* pName, const CString& Value)
+{
+        return f_printf(pFile, "%s = %s\n", pName, static_cast<const char*>(Value)) >= 0;
+}
+
+static bool WriteOption(FIL* pFile, const char* pName, const CIPAddress& Value)
+{
+        u8 IP[4];
+        Value.Get(IP);
+        return f_printf(pFile, "%s = %u.%u.%u.%u\n", pName, IP[0], IP[1], IP[2], IP[3]) >= 0;
+}
+
+#define CONFIG_ENUM_WRITER(ENUM_NAME)                                                                                              \
+        static bool WriteOption(FIL* pFile, const char* pName, ENUM_NAME Value)                                                     \
+        {                                                                                                                          \
+                return WriteEnum<ENUM_NAME, ENUM_NAME##Strings, Utility::ArraySize(ENUM_NAME##Strings)>(pFile, pName, Value);      \
+        }
+
+CONFIG_ENUM_WRITER(TSystemDefaultSynth);
+CONFIG_ENUM_WRITER(TAudioOutputDevice);
+CONFIG_ENUM_WRITER(TMT32EmuResamplerQuality);
+CONFIG_ENUM_WRITER(TMT32EmuMIDIChannels);
+CONFIG_ENUM_WRITER(TMT32EmuROMSet);
+CONFIG_ENUM_WRITER(TLCDType);
+CONFIG_ENUM_WRITER(TControlScheme);
+CONFIG_ENUM_WRITER(TEncoderType);
+CONFIG_ENUM_WRITER(TLCDRotation);
+CONFIG_ENUM_WRITER(TLCDMirror);
+CONFIG_ENUM_WRITER(TNetworkMode);
+
+bool CConfig::Save(const char* pPath) const
+{
+        FIL File;
+        if (f_open(&File, pPath, FA_WRITE | FA_CREATE_ALWAYS) != FR_OK)
+        {
+                LOGERR("Couldn't open '%s' for writing", pPath);
+                return false;
+        }
+
+        #define BEGIN_SECTION(SECTION) f_printf(&File, "[%s]\n", #SECTION);
+        #define CFG(INI_NAME, TYPE, MEMBER_NAME, _DEFAULT, ...) WriteOption(&File, #INI_NAME, MEMBER_NAME);
+        #define END_SECTION f_putc('\n', &File);
+        #include "config.def"
+        #undef BEGIN_SECTION
+        #undef CFG
+        #undef END_SECTION
+
+        f_close(&File);
+        return true;
+}

@@ -76,8 +76,9 @@ public:
 	CONFIG_ENUM(TLCDType, ENUM_LCDTYPE);
 	CONFIG_ENUM(TNetworkMode, ENUM_NETWORKMODE);
 
-	CConfig();
-	bool Initialize(const char* pPath);
+        CConfig();
+        bool Initialize(const char* pPath);
+        bool Save(const char* pPath) const;
 
 	static CConfig* Get() { return s_pThis; }
 

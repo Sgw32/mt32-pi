@@ -15,9 +15,10 @@ OBJS		:=	src/config.o \
 			src/lcd/drivers/hd44780fourbit.o \
 			src/lcd/drivers/hd44780i2c.o \
 			src/lcd/drivers/sh1106.o \
-			src/lcd/drivers/ssd1306.o \
-			src/lcd/ui.o \
-			src/main.o \
+                        src/lcd/drivers/ssd1306.o \
+                        src/lcd/ui.o \
+                        src/lcd/menu.o \
+                        src/main.o \
 			src/midimonitor.o \
 			src/midiparser.o \
 			src/mt32pi.o \
