@@ -46,6 +46,11 @@ jobs:
     - name: Fetch submodules
       run: make submodules
 
+    - name: Install build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libglib2.0-dev pkg-config
+
     - name: Setup ccache
       uses: hendrikmuhs/ccache-action@v1.2
       with:
