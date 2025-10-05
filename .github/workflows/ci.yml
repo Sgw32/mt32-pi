@@ -202,7 +202,7 @@ jobs:
       if: steps.cache-generaluser-gs.outputs.cache-hit != 'true'
       run: |
         sudo pip install gdown
-        gdown -q https://drive.google.com/file/d/1omYCHcGymYGZcKe0DgRP1SeB1wTkemtx
+        gdown -q https://drive.google.com/uc?id=1omYCHcGymYGZcKe0DgRP1SeB1wTkemtx
         unzip "GeneralUser GS v1.511.zip"
 
     - name: Retrieve built kernels (pi2)
