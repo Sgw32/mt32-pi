@@ -52,6 +52,7 @@
 #include "control/mister.h"
 #include "event.h"
 #include "lcd/ui.h"
+#include "lcd/menu.h"
 #include "midiparser.h"
 #include "net/applemidi.h"
 #include "net/ftpdaemon.h"
@@ -166,11 +167,12 @@ private:
 
 	CBcmRandomNumberGenerator m_Random;
 
-	CLCD* m_pLCD;
-	unsigned m_nLCDUpdateTime;
-	CUserInterface m_UserInterface;
+        CLCD* m_pLCD;
+        unsigned m_nLCDUpdateTime;
+        CUserInterface m_UserInterface;
+        CSettingsMenu m_SettingsMenu;
 #ifdef MONITOR_TEMPERATURE
-	unsigned m_nTempUpdateTime;
+        unsigned m_nTempUpdateTime;
 #endif
 
 	CControl* m_pControl;

@@ -29,6 +29,7 @@
 #include "lcd/lcd.h"
 
 class CSynthBase;
+class CSettingsMenu;
 
 class CUserInterface
 {
@@ -37,24 +38,35 @@ public:
 	{
 		Roland,
 		Yamaha,
-	};
+        }; 
 
-	CUserInterface();
+        enum class TVisualizationMode
+        {
+                ChannelLevels,
+                CPULoad,
+        };
 
-	void Update(CLCD& LCD, CSynthBase& Synth, unsigned int nTicks);
+        CUserInterface();
+
+        void Update(CLCD& LCD, CSynthBase& Synth, unsigned int nTicks);
 
 	void ShowSystemMessage(const char* pMessage, bool bSpinner = false);
 	void ClearSpinnerMessage();
 	void DisplayImage(TImage Image);
 	void ShowSysExText(TSysExDisplayMessage Type, const u8* pMessage, size_t nSize, u8 nOffset);
 	void ShowSysExBitmap(TSysExDisplayMessage Type, const u8* pData, size_t nSize);
-	void EnterPowerSavingMode();
-	void ExitPowerSavingMode();
+        void EnterPowerSavingMode();
+        void ExitPowerSavingMode();
 
-	bool IsScrolling() const { return m_bIsScrolling; }
+        bool IsScrolling() const { return m_bIsScrolling; }
 
-	static u8 CenterMessageOffset(CLCD& LCD, const char* pMessage);
-	static void DrawChannelLevels(CLCD& LCD, u8 nBarHeight, float* pChannelLevels, float* pPeakLevels, u8 nChannels, bool bDrawBarBases);
+        void AttachMenu(const CSettingsMenu* pMenu) { m_pMenu = pMenu; }
+        void SetVisualizationMode(TVisualizationMode Mode) { m_VisualizationMode = Mode; }
+        TVisualizationMode GetVisualizationMode() const { return m_VisualizationMode; }
+
+        static u8 CenterMessageOffset(CLCD& LCD, const char* pMessage);
+        static void DrawChannelLevels(CLCD& LCD, u8 nBarHeight, float* pChannelLevels, float* pPeakLevels, u8 nChannels, bool bDrawBarBases);
+        void DrawCPULoad(CLCD& LCD, unsigned int nTicks) const;
 
 private:
 	enum class TState
@@ -79,7 +91,7 @@ private:
 
 	static constexpr size_t SystemMessageTextBufferSize = 256;
 	static constexpr size_t SyxExTextBufferSize = 32 + 1;
-	static constexpr size_t SysExPixelBufferSize = 64;
+        static constexpr size_t SysExPixelBufferSize = 64;
 
 	static constexpr unsigned SystemMessageDisplayTimeMillis = 3000;
 	static constexpr unsigned SystemMessageSpinnerTimeMillis = 32;
@@ -95,7 +107,9 @@ private:
 	char m_SystemMessageTextBuffer[SystemMessageTextBufferSize];
 	TSysExDisplayMessage m_SysExDisplayMessageType;
 	char m_SysExTextBuffer[SyxExTextBufferSize];
-	u8 m_SysExPixelBuffer[SysExPixelBufferSize];
+        u8 m_SysExPixelBuffer[SysExPixelBufferSize];
+        const CSettingsMenu* m_pMenu;
+        TVisualizationMode m_VisualizationMode;
 };
 
 #endif

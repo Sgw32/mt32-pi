@@ -26,6 +26,7 @@
 #include <cstdio>
 
 #include "lcd/ui.h"
+#include "lcd/menu.h"
 #include "synth/synthbase.h"
 #include "utility.h"
 
@@ -35,16 +36,18 @@ constexpr u8 BarSpacingPixels = 2;
 constexpr u8 SpinnerChars[] = {'_', '_', '_', '-', '\'', '\'', '^', '^', '`', '`', '-', '_', '_', '_'};
 
 CUserInterface::CUserInterface()
-	: m_State(TState::None),
-	  m_nStateTime(0),
-	  m_bIsScrolling(false),
-	  m_nCurrentScrollOffset(0),
-	  m_nCurrentSpinnerChar(0),
-	  m_CurrentImage(TImage::None),
-	  m_SystemMessageTextBuffer{'\0'},
-	  m_SysExDisplayMessageType(TSysExDisplayMessage::Roland),
-	  m_SysExTextBuffer{'\0'},
-	  m_SysExPixelBuffer{0}
+        : m_State(TState::None),
+          m_nStateTime(0),
+          m_bIsScrolling(false),
+          m_nCurrentScrollOffset(0),
+          m_nCurrentSpinnerChar(0),
+          m_CurrentImage(TImage::None),
+          m_SystemMessageTextBuffer{'\0'},
+          m_SysExDisplayMessageType(TSysExDisplayMessage::Roland),
+          m_SysExTextBuffer{'\0'},
+          m_SysExPixelBuffer{0},
+          m_pMenu(nullptr),
+          m_VisualizationMode(TVisualizationMode::ChannelLevels)
 {
 }
 
@@ -135,11 +138,18 @@ void CUserInterface::Update(CLCD& LCD, CSynthBase& Synth, unsigned int nTicks)
 
 	LCD.Clear(false);
 
-	// Draw synth UI if no drawable system state
-	if (!DrawSystemState(LCD))
-		Synth.UpdateLCD(LCD, nTicks);
+        // Draw menu if active, otherwise draw synth UI or custom visualization
+        if (m_pMenu && m_pMenu->IsActive())
+                m_pMenu->Draw(LCD);
+        else if (!DrawSystemState(LCD))
+        {
+                if (m_VisualizationMode == TVisualizationMode::ChannelLevels)
+                        Synth.UpdateLCD(LCD, nTicks);
+                else
+                        DrawCPULoad(LCD, nTicks);
+        }
 
-	LCD.Flip();
+        LCD.Flip();
 }
 
 void CUserInterface::ShowSystemMessage(const char* pMessage, bool bSpinner)
@@ -160,7 +170,7 @@ void CUserInterface::ShowSystemMessage(const char* pMessage, bool bSpinner)
 	}
 
 	m_nCurrentScrollOffset = 0;
-	m_nStateTime = nTicks;
+        m_nStateTime = nTicks;
 }
 
 void CUserInterface::ClearSpinnerMessage()
@@ -245,7 +255,15 @@ void CUserInterface::DrawChannelLevels(CLCD& LCD, u8 nBarHeight, float* pChannel
 		const u8 nTotalBarWidth = nBarWidth * nChannels;
 		const u8 nBarOffsetX = (LCD.Width() - nTotalBarWidth - nTotalBarSpacing) / 2;
 		DrawChannelLevelsGraphical(LCD, nBarOffsetX, 0, nBarWidth, nBarHeight, BarSpacingPixels, pChannelLevels, pPeakLevels, nChannels, bDrawBarBases);
-	}
+        }
+}
+
+void CUserInterface::DrawCPULoad(CLCD& LCD, unsigned int nTicks) const
+{
+        const float nLevel = (nTicks % 1000000) / 1000000.0f;
+        float Levels[1] = { nLevel };
+        float Peaks[1]  = { nLevel };
+        DrawChannelLevels(LCD, LCD.Height() - 2, Levels, Peaks, 1, true);
 }
 
 void CUserInterface::DrawChannelLevelsCharacter(CLCD& LCD, u8 nRows, u8 nBarOffsetX, u8 nBarYOffset, u8 nBarSpacing, const float* pChannelLevels, u8 nChannels, bool bDrawBarBases)
