@@ -34,13 +34,26 @@ LOGMODULE("config");
 const char* TrueStrings[]  = {"true", "on", "1"};
 const char* FalseStrings[] = {"false", "off", "0"};
 
+using TSystemDefaultSynth      = CConfig::TSystemDefaultSynth;
+using TAudioOutputDevice       = CConfig::TAudioOutputDevice;
+using TControlScheme           = CConfig::TControlScheme;
+using TLCDType                 = CConfig::TLCDType;
+using TNetworkMode             = CConfig::TNetworkMode;
+using TMT32EmuResamplerQuality = CConfig::TMT32EmuResamplerQuality;
+using TMT32EmuMIDIChannels     = CConfig::TMT32EmuMIDIChannels;
+using TMT32EmuROMSet           = CConfig::TMT32EmuROMSet;
+using TLCDRotation             = CConfig::TLCDRotation;
+using TLCDMirror               = CConfig::TLCDMirror;
+using TEncoderType             = CConfig::TEncoderType;
+
 // Templated function that converts a string to an enum
-template <class T, const char* pEnumStrings[], size_t N> static bool ParseEnum(const char* pString, T* pOut)
+template <class T, size_t N>
+static bool ParseEnum(const char* pString, T* pOut, const char* (&pEnumStrings)[N])
 {
-	for (size_t i = 0; i < N; ++i)
-	{
-		if (!strcasecmp(pString, pEnumStrings[i]))
-		{
+        for (size_t i = 0; i < N; ++i)
+        {
+                if (!strcasecmp(pString, pEnumStrings[i]))
+                {
 			*pOut = static_cast<T>(i);
 			return true;
 		}
@@ -50,11 +63,11 @@ template <class T, const char* pEnumStrings[], size_t N> static bool ParseEnum(c
 }
 
 // Macro to expand templated enum parser into an overloaded definition of ParseOption()
-#define CONFIG_ENUM_PARSER(ENUM_NAME)                                                                           \
-	bool CConfig::ParseOption(const char* pString, ENUM_NAME* pOut)                                             \
-	{                                                                                                           \
-		return ParseEnum<ENUM_NAME, ENUM_NAME##Strings, Utility::ArraySize(ENUM_NAME##Strings)>(pString, pOut); \
-	}
+#define CONFIG_ENUM_PARSER(ENUM_NAME)                                                   \
+        bool CConfig::ParseOption(const char* pString, ENUM_NAME* pOut)                 \
+        {                                                                               \
+                return ParseEnum(pString, pOut, ENUM_NAME##Strings);                    \
+        }
 
 // Enum string tables
 CONFIG_ENUM_STRINGS(TSystemDefaultSynth, ENUM_SYSTEMDEFAULTSYNTH);
@@ -214,13 +227,13 @@ CONFIG_ENUM_PARSER(TLCDMirror);
 CONFIG_ENUM_PARSER(TNetworkMode);
 
 // Helpers for writing config values
-template <class T, const char* pEnumStrings[], size_t N>
-static bool WriteEnum(FIL* pFile, const char* pName, T Value)
+template <class T, size_t N>
+static bool WriteEnum(FIL* pFile, const char* pName, T Value, const char* (&pEnumStrings)[N])
 {
-        const size_t nIndex = static_cast<size_t>(Value);
-        if (nIndex >= N)
-                return false;
-        return f_printf(pFile, "%s = %s\n", pName, pEnumStrings[nIndex]) >= 0;
+	const size_t nIndex = static_cast<size_t>(Value);
+	if (nIndex >= N)
+		return false;
+	return f_printf(pFile, "%s = %s\n", pName, pEnumStrings[nIndex]) >= 0;
 }
 
 static bool WriteOption(FIL* pFile, const char* pName, bool Value)
@@ -245,16 +258,15 @@ static bool WriteOption(FIL* pFile, const char* pName, const CString& Value)
 
 static bool WriteOption(FIL* pFile, const char* pName, const CIPAddress& Value)
 {
-        u8 IP[4];
-        Value.Get(IP);
-        return f_printf(pFile, "%s = %u.%u.%u.%u\n", pName, IP[0], IP[1], IP[2], IP[3]) >= 0;
+	const u8* const pIP = Value.Get();
+	return f_printf(pFile, "%s = %u.%u.%u.%u\n", pName, pIP[0], pIP[1], pIP[2], pIP[3]) >= 0;
 }
 
-#define CONFIG_ENUM_WRITER(ENUM_NAME)                                                                                              \
-        static bool WriteOption(FIL* pFile, const char* pName, ENUM_NAME Value)                                                     \
-        {                                                                                                                          \
-                return WriteEnum<ENUM_NAME, ENUM_NAME##Strings, Utility::ArraySize(ENUM_NAME##Strings)>(pFile, pName, Value);      \
-        }
+#define CONFIG_ENUM_WRITER(ENUM_NAME) \
+	static bool WriteOption(FIL* pFile, const char* pName, ENUM_NAME Value) \
+	{ \
+		return WriteEnum(pFile, pName, Value, ENUM_NAME##Strings); \
+	}
 
 CONFIG_ENUM_WRITER(TSystemDefaultSynth);
 CONFIG_ENUM_WRITER(TAudioOutputDevice);
