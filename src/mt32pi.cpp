@@ -89,6 +89,7 @@ CMT32Pi::CMT32Pi(CI2CMaster* pI2CMaster, CSPIMaster* pSPIMaster, CInterruptSyste
          m_nLCDUpdateTime(0),
          m_UserInterface(),
          m_SettingsMenu(*m_pConfig, m_UserInterface),
+         m_SynthMode(),
 #ifdef MONITOR_TEMPERATURE
           m_nTempUpdateTime(0),
 #endif
@@ -125,6 +126,7 @@ CMT32Pi::CMT32Pi(CI2CMaster* pI2CMaster, CSPIMaster* pSPIMaster, CInterruptSyste
 {
         s_pThis = this;
         m_UserInterface.AttachMenu(&m_SettingsMenu);
+        m_SynthMode.Initialize(m_UserInterface);
 }
 
 CMT32Pi::~CMT32Pi()
@@ -284,21 +286,23 @@ bool CMT32Pi::Initialize(bool bSerialMIDIAvailable)
 	else if (m_pConfig->SystemDefaultSynth == CConfig::TSystemDefaultSynth::SoundFont)
 		m_pCurrentSynth = m_pSoundFontSynth;
 
-	if (!m_pCurrentSynth)
-	{
-		LOGERR("Preferred synth failed to initialize successfully");
+        if (!m_pCurrentSynth)
+        {
+                LOGERR("Preferred synth failed to initialize successfully");
 
-		// Activate any working synth
-		if (m_pMT32Synth)
-			m_pCurrentSynth = m_pMT32Synth;
-		else if (m_pSoundFontSynth)
-			m_pCurrentSynth = m_pSoundFontSynth;
-		else
-		{
-			LOGPANIC("No synths available; ROMs/SoundFonts not found");
-			return false;
-		}
-	}
+                // Activate any working synth
+                if (m_pMT32Synth)
+                        m_pCurrentSynth = m_pMT32Synth;
+                else if (m_pSoundFontSynth)
+                        m_pCurrentSynth = m_pSoundFontSynth;
+                else
+                {
+                        LOGPANIC("No synths available; ROMs/SoundFonts not found");
+                        return false;
+                }
+        }
+
+        m_SynthMode.SetCurrentSynth(GetActiveSynthType(), m_pCurrentSynth);
 
 	if (m_pPisound)
 		LOGNOTE("Using Pisound MIDI interface");
@@ -1053,7 +1057,9 @@ void CMT32Pi::ProcessEventQueue()
 				break;
 
                         case TEventType::Encoder:
-                                if (m_SettingsMenu.IsActive())
+                                if (m_SynthMode.IsActive())
+                                        m_SynthMode.HandleEncoder(Event.Encoder.nDelta);
+                                else if (m_SettingsMenu.IsActive())
                                         m_SettingsMenu.Adjust(Event.Encoder.nDelta);
                                 else
                                         SetMasterVolume(m_nMasterVolume + Event.Encoder.nDelta);
@@ -1066,7 +1072,20 @@ void CMT32Pi::ProcessButtonEvent(const TButtonEvent& Event)
 {
         if (Event.Button == TButton::EncoderButton)
         {
-                if (Event.bPressed)
+                if (!Event.bPressed)
+                        return;
+
+                if (m_SynthMode.IsActive())
+                {
+                        if (!Event.bRepeat)
+                        {
+                                if (m_pCurrentSynth == m_pMT32Synth && m_pSoundFontSynth)
+                                        SwitchSynth(TSynth::SoundFont);
+                                else if (m_pCurrentSynth == m_pSoundFontSynth && m_pMT32Synth)
+                                        SwitchSynth(TSynth::MT32);
+                        }
+                }
+                else
                         m_SettingsMenu.ToggleActive();
                 return;
         }
@@ -1089,41 +1108,39 @@ void CMT32Pi::ProcessButtonEvent(const TButtonEvent& Event)
 
         if (Event.Button == TButton::Button1 && !Event.bRepeat)
         {
-                // Swap synths
-                if (m_pCurrentSynth == m_pMT32Synth)
-                        SwitchSynth(TSynth::SoundFont);
+                if (m_SynthMode.IsActive())
+                        m_SynthMode.Deactivate();
                 else
-                        SwitchSynth(TSynth::MT32);
+                        m_SynthMode.Activate();
+                return;
         }
-        else if (Event.Button == TButton::Button2 && !Event.bRepeat)
+
+        if (m_SynthMode.IsActive())
         {
-                if (m_pCurrentSynth == m_pMT32Synth)
-                        NextMT32ROMSet();
-                else
+                switch (Event.Button)
                 {
-                        // Next SoundFont
-                        const size_t nSoundFonts = m_pSoundFontSynth->GetSoundFontManager().GetSoundFontCount();
+                        case TButton::Button2:
+                                if (!Event.bRepeat)
+                                        AdvanceCurrentSynthBank();
+                                break;
 
-                        if (!nSoundFonts)
-                                LCDLog(TLCDLogType::Error, "No SoundFonts!");
-                        else
-                        {
-                                size_t nNextSoundFont;
-                                if (m_bDeferredSoundFontSwitchFlag)
-                                        nNextSoundFont = (m_nDeferredSoundFontSwitchIndex + 1) % nSoundFonts;
-                                else
-                                {
-                                        // Current SoundFont was probably on a USB stick that has since been removed
-                                        const size_t nCurrentSoundFont = m_pSoundFontSynth->GetSoundFontIndex();
-                                        if (nCurrentSoundFont > nSoundFonts)
-                                                nNextSoundFont = 0;
-                                        else
-                                                nNextSoundFont = (nCurrentSoundFont + 1) % nSoundFonts;
-                                }
+                        case TButton::Button3:
+                                m_SynthMode.AdjustChannel(-1);
+                                break;
 
-                                DeferSwitchSoundFont(nNextSoundFont);
-                        }
+                        case TButton::Button4:
+                                m_SynthMode.AdjustChannel(1);
+                                break;
+
+                        default:
+                                break;
                 }
+                return;
+        }
+
+        if (Event.Button == TButton::Button2 && !Event.bRepeat)
+        {
+                AdvanceCurrentSynthBank();
         }
         else if (Event.Button == TButton::Button3)
         {
@@ -1135,12 +1152,57 @@ void CMT32Pi::ProcessButtonEvent(const TButtonEvent& Event)
         }
 }
 
+TSynth CMT32Pi::GetActiveSynthType() const
+{
+        if (m_pCurrentSynth == m_pSoundFontSynth && m_pSoundFontSynth)
+                return TSynth::SoundFont;
+
+        return TSynth::MT32;
+}
+
+void CMT32Pi::AdvanceCurrentSynthBank()
+{
+        if (m_pCurrentSynth == nullptr)
+                return;
+
+        if (m_pCurrentSynth == m_pMT32Synth)
+        {
+                NextMT32ROMSet();
+                return;
+        }
+
+        if (m_pCurrentSynth != m_pSoundFontSynth || m_pSoundFontSynth == nullptr)
+                return;
+
+        const size_t nSoundFonts = m_pSoundFontSynth->GetSoundFontManager().GetSoundFontCount();
+
+        if (!nSoundFonts)
+        {
+                LCDLog(TLCDLogType::Error, "No SoundFonts!");
+                return;
+        }
+
+        size_t nNextSoundFont;
+        if (m_bDeferredSoundFontSwitchFlag)
+                nNextSoundFont = (m_nDeferredSoundFontSwitchIndex + 1) % nSoundFonts;
+        else
+        {
+                const size_t nCurrentSoundFont = m_pSoundFontSynth->GetSoundFontIndex();
+                if (nCurrentSoundFont > nSoundFonts)
+                        nNextSoundFont = 0;
+                else
+                        nNextSoundFont = (nCurrentSoundFont + 1) % nSoundFonts;
+        }
+
+        DeferSwitchSoundFont(nNextSoundFont);
+}
+
 void CMT32Pi::SwitchSynth(TSynth NewSynth)
 {
-	CSynthBase* pNewSynth = nullptr;
+        CSynthBase* pNewSynth = nullptr;
 
-	if (NewSynth == TSynth::MT32)
-		pNewSynth = m_pMT32Synth;
+        if (NewSynth == TSynth::MT32)
+                pNewSynth = m_pMT32Synth;
 	else if (NewSynth == TSynth::SoundFont)
 		pNewSynth = m_pSoundFontSynth;
 
@@ -1156,11 +1218,12 @@ void CMT32Pi::SwitchSynth(TSynth NewSynth)
 		return;
 	}
 
-	m_pCurrentSynth->AllSoundOff();
-	m_pCurrentSynth = pNewSynth;
-	const char* pMode = NewSynth == TSynth::MT32 ? "MT-32 mode" : "SoundFont mode";
-	LOGNOTE("Switching to %s", pMode);
-	LCDLog(TLCDLogType::Notice, pMode);
+        m_pCurrentSynth->AllSoundOff();
+        m_pCurrentSynth = pNewSynth;
+        m_SynthMode.SetCurrentSynth(NewSynth, m_pCurrentSynth);
+        const char* pMode = NewSynth == TSynth::MT32 ? "MT-32 mode" : "SoundFont mode";
+        LOGNOTE("Switching to %s", pMode);
+        LCDLog(TLCDLogType::Notice, pMode);
 }
 
 void CMT32Pi::SwitchMT32ROMSet(TMT32ROMSet ROMSet)
