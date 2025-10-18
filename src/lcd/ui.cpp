@@ -47,6 +47,7 @@ CUserInterface::CUserInterface()
           m_SysExTextBuffer{'\0'},
           m_SysExPixelBuffer{0},
           m_pMenu(nullptr),
+          m_pModePresenter(nullptr),
           m_VisualizationMode(TVisualizationMode::ChannelLevels)
 {
 }
@@ -136,14 +137,17 @@ void CUserInterface::Update(CLCD& LCD, CSynthBase& Synth, unsigned int nTicks)
 	if (m_State == TState::InPowerSavingMode)
 		return;
 
-	LCD.Clear(false);
+        LCD.Clear(false);
 
-        // Draw menu if active, otherwise draw synth UI or custom visualization
         if (m_pMenu && m_pMenu->IsActive())
+        {
                 m_pMenu->Draw(LCD);
+        }
         else if (!DrawSystemState(LCD))
         {
-                if (m_VisualizationMode == TVisualizationMode::ChannelLevels)
+                if (m_pModePresenter)
+                        m_pModePresenter->Draw(LCD);
+                else if (m_VisualizationMode == TVisualizationMode::ChannelLevels)
                         Synth.UpdateLCD(LCD, nTicks);
                 else
                         DrawCPULoad(LCD, nTicks);

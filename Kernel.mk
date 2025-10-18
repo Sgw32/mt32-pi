@@ -18,8 +18,9 @@ OBJS		:=	src/config.o \
                         src/lcd/drivers/ssd1306.o \
                         src/lcd/ui.o \
                         src/lcd/menu.o \
+                        src/synthmode.o \
                         src/main.o \
-			src/midimonitor.o \
+                        src/midimonitor.o \
 			src/midiparser.o \
 			src/mt32pi.o \
 			src/net/applemidi.o \
