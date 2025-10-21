@@ -21,9 +21,7 @@ CSettingsMenu::CSettingsMenu(CConfig& Config, CUserInterface& UI)
 void CSettingsMenu::ToggleActive()
 {
         m_bActive = !m_bActive;
-        if (!m_bActive)
-                m_Config.Save("mt32-pi.cfg");
-        else
+        if (m_bActive)
                 m_CurrentItem = TItem::Verbose;
 }
 
