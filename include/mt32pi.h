@@ -64,6 +64,7 @@
 #include "synth/mt32synth.h"
 #include "synth/soundfontsynth.h"
 #include "synth/synth.h"
+#include "synthmode.h"
 
 //#define MONITOR_TEMPERATURE
 
@@ -133,13 +134,15 @@ private:
 	void SwitchSynth(TSynth Synth);
 	void SwitchMT32ROMSet(TMT32ROMSet ROMSet);
 	void NextMT32ROMSet();
-	void SwitchSoundFont(size_t nIndex);
-	void DeferSwitchSoundFont(size_t nIndex);
-	void SetMasterVolume(s32 nVolume);
+        void SwitchSoundFont(size_t nIndex);
+        void DeferSwitchSoundFont(size_t nIndex);
+        void SetMasterVolume(s32 nVolume);
+        void AdvanceCurrentSynthBank();
+        TSynth GetActiveSynthType() const;
 
-	const char* GetNetworkDeviceShortName() const;
-	void LEDOn();
-	void LCDLog(TLCDLogType Type, const char* pFormat...);
+        const char* GetNetworkDeviceShortName() const;
+        void LEDOn();
+        void LCDLog(TLCDLogType Type, const char* pFormat...);
 
 	CConfig* volatile m_pConfig;
 
@@ -171,6 +174,7 @@ private:
         unsigned m_nLCDUpdateTime;
         CUserInterface m_UserInterface;
         CSettingsMenu m_SettingsMenu;
+        CSynthMode m_SynthMode;
 #ifdef MONITOR_TEMPERATURE
         unsigned m_nTempUpdateTime;
 #endif

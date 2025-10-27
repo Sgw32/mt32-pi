@@ -34,9 +34,16 @@ class CSettingsMenu;
 class CUserInterface
 {
 public:
-	enum class TSysExDisplayMessage
-	{
-		Roland,
+        class IModePresenter
+        {
+        public:
+                virtual ~IModePresenter() = default;
+                virtual void Draw(CLCD& LCD) = 0;
+        };
+
+        enum class TSysExDisplayMessage
+        {
+                Roland,
 		Yamaha,
         }; 
 
@@ -61,6 +68,12 @@ public:
         bool IsScrolling() const { return m_bIsScrolling; }
 
         void AttachMenu(const CSettingsMenu* pMenu) { m_pMenu = pMenu; }
+        void SetModePresenter(IModePresenter* pPresenter) { m_pModePresenter = pPresenter; }
+        void ClearModePresenter(const IModePresenter* pPresenter)
+        {
+                if (m_pModePresenter == pPresenter)
+                        m_pModePresenter = nullptr;
+        }
         void SetVisualizationMode(TVisualizationMode Mode) { m_VisualizationMode = Mode; }
         TVisualizationMode GetVisualizationMode() const { return m_VisualizationMode; }
 
@@ -104,11 +117,12 @@ private:
 	size_t m_nCurrentScrollOffset;
 	size_t m_nCurrentSpinnerChar;
 	TImage m_CurrentImage;
-	char m_SystemMessageTextBuffer[SystemMessageTextBufferSize];
-	TSysExDisplayMessage m_SysExDisplayMessageType;
-	char m_SysExTextBuffer[SyxExTextBufferSize];
+        char m_SystemMessageTextBuffer[SystemMessageTextBufferSize];
+        TSysExDisplayMessage m_SysExDisplayMessageType;
+        char m_SysExTextBuffer[SyxExTextBufferSize];
         u8 m_SysExPixelBuffer[SysExPixelBufferSize];
         const CSettingsMenu* m_pMenu;
+        IModePresenter* m_pModePresenter;
         TVisualizationMode m_VisualizationMode;
 };
 
