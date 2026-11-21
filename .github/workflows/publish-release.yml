@@ -1,0 +1,86 @@
+name: Publish firmware release
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Successful mt32-pi CI run on main
+        required: true
+        type: string
+      tag:
+        description: Release tag (for example, v0.14.0)
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      GH_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ github.token }}
+      RUN_ID: ${{ inputs.run_id }}
+      TAG: ${{ inputs.tag }}
+    steps:
+      - name: Verify the source run
+        id: source
+        run: |
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          sha=$(gh api "repos/$GH_REPO/actions/workflows/ci.yml/runs/$RUN_ID" --jq '
+            select(.conclusion == "success" and .head_branch == "main" and .event == "push")
+            | .head_sha')
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]]
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Download CI artifacts
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.run_id }}
+          path: artifacts
+
+      - name: Package and verify release files
+        run: |
+          mkdir release
+          release_dir="$PWD/release"
+          test -s artifacts/sdcard/kernel7.img
+          test -s artifacts/sdcard/kernel8.img
+          test -s artifacts/sdcard/kernel8-rpi4.img
+          (cd artifacts/sdcard && zip -qr "$release_dir/mt32-pi-${TAG#v}.zip" .)
+
+          for target in pi2:kernel7 pi3-64:kernel8 pi4-64:kernel8-rpi4; do
+            board=${target%:*}
+            kernel=${target#*:}.img
+            for variant in kernels kernels-hdmi; do
+              directory="artifacts/$variant-$board"
+              test -s "$directory/$kernel"
+              gzip -t "$directory/$kernel"
+              (cd "$directory" && zip -q "$release_dir/$variant-$board.zip" "$kernel")
+            done
+          done
+
+          cd release
+          for archive in ./*.zip; do unzip -tq "$archive"; done
+          sha256sum ./*.zip > SHA256SUMS
+
+      - name: Upload and publish
+        env:
+          TARGET_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          if gh release view "$TAG" --json isDraft --jq .isDraft > release-state; then
+            if [[ $(cat release-state) != true ]]; then
+              echo "::error::Release $TAG is already published"
+              exit 1
+            fi
+            gh release edit "$TAG" --target "$TARGET_SHA" --title "mt32-pi $TAG"
+          else
+            gh release create "$TAG" --draft --target "$TARGET_SHA" --title "mt32-pi $TAG" --generate-notes
+          fi
+
+          gh release upload "$TAG" "release/mt32-pi-${TAG#v}.zip" release/kernels-*.zip release/SHA256SUMS
+          gh release edit "$TAG" --draft=false
