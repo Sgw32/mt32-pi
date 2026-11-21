@@ -36,6 +36,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     name: build-${{ matrix.board }}
+    env:
+      # The pinned Munt submodule predates CMake 3.5. CMake 4 removed its older policy modes.
+      CMAKE_POLICY_VERSION_MINIMUM: "3.5"
     strategy:
       fail-fast: false
       matrix:
@@ -84,7 +87,8 @@ jobs:
         done
 
     - name: Build
-      run: make -j BOARD=${{ matrix.board }}
+      run: make -j BOARD=${{ matrix.board }} 2>&1 | tee "$RUNNER_TEMP/firmware-build.log"
+      shell: bash
 
     - name: Upload built kernel
       uses: actions/upload-artifact@v4
@@ -93,7 +97,21 @@ jobs:
         path: kernel*.img
 
     - name: Build (HDMI console)
-      run: make clean && make -j BOARD=${{ matrix.board }} HDMI_CONSOLE=1
+      run: |
+        make clean
+        make -j BOARD=${{ matrix.board }} HDMI_CONSOLE=1 2>&1 | tee "$RUNNER_TEMP/firmware-build.log"
+      shell: bash
+
+    - name: Report build errors
+      if: failure()
+      run: |
+        log="$RUNNER_TEMP/firmware-build.log"
+        if [[ -f "$log" ]]; then
+          grep -iE 'error:|CMake Error|undefined reference|\*\*\* ' "$log" \
+            | tail -n 12 | while IFS= read -r line; do
+                echo "::error::${line//%/%25}"
+              done
+        fi
 
     - name: Upload built kernel
       uses: actions/upload-artifact@v4
