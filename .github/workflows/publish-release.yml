@@ -31,8 +31,9 @@ jobs:
         run: |
           [[ "$RUN_ID" =~ ^[0-9]+$ ]]
           [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          sha=$(gh api "repos/$GH_REPO/actions/workflows/ci.yml/runs/$RUN_ID" --jq '
-            select(.conclusion == "success" and .head_branch == "main" and .event == "push")
+          sha=$(gh api "repos/$GH_REPO/actions/runs/$RUN_ID" --jq '
+            select(.path == ".github/workflows/ci.yml" and .conclusion == "success"
+              and .head_branch == "main" and .event == "push")
             | .head_sha')
           [[ "$sha" =~ ^[0-9a-f]{40}$ ]]
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
